@@ -1,0 +1,265 @@
+Atomic
+/// omp_atomic.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <omp.h>
+#define MAX 10
+int main() {
+	int count = 0;
+#pragma omp parallel num_threads(MAX)
+	{
+#pragma omp atomic
+		count++;
+	}
+	printf_s("Number of threads: %d\n", count);
+}
+Barrier
+#include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
+int main(int argc, char* argv[]) {
+	int th_id, nthreads;
+#pragma omp parallel private(th_id)
+	{
+		th_id = omp_get_thread_num(); printf("Hello World from thread %d\n", th_id);
+#pragma omp barrier
+		if (th_id == 0) {
+			nthreads = omp_get_num_threads();
+			printf("There are %d threads\n", nthreads);
+		}
+	}
+	return EXIT_SUCCESS;
+}
+Critical
+// omp_critical.cpp
+// compile with: /openmp
+#include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#define SIZE 10
+int main() {
+	int i;
+	int max;
+	int a[SIZE];
+	for (i = 0; i < SIZE; i++)
+	{
+		a[i] = rand();
+		printf_s("%d\n", a[i]);
+	}
+	max = a[0];
+#pragma omp parallel for num_threads(4)
+	for (i = 1; i < SIZE; i++)
+	{
+		if (a[i] > max)
+		{
+#pragma omp critical
+			{
+				// compare a[i] and max again because max
+				// could have been changed by another thread after
+				// the comparison outside the critical section
+				if (a[i] > max)
+					max = a[i];
+			}
+		}
+	}
+}
+Flush
+// omp_flush.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <omp.h>
+void read(int* data) {
+	printf_s("read data\n");
+	*data = 1;
+}
+void process(int* data) {
+	printf_s("process data\n");
+	(*data)++;
+}
+int main() {
+	int data;
+	int flag;
+	flag = 0;
+#pragma omp parallel sections num_threads(2)
+	{
+#pragma omp section
+		{
+			printf_s("Thread %d: ", omp_get_thread_num());
+			read(&data);
+#pragma omp flush(data)
+			flag = 1;
+#pragma omp flush(flag)
+			// Do more work.
+		}
+#pragma omp section
+		{
+			while (!flag) {
+#pragma omp flush(flag)
+			}
+#pragma omp flush(data)
+			printf_s("Thread %d: ", omp_get_thread_num()); process(&data);
+			printf_s("data = %d\n", data);
+		}
+	}
+}
+For
+// omp_for.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <math.h>
+#include <omp.h>
+#define NUM_THREADS 4
+#define NUM_START 1
+#define NUM_END 10
+int main() {
+	int i, nRet = 0, nSum = 0, nStart = NUM_START, nEnd = NUM_END;
+	int nThreads = 0, nTmp = nStart + nEnd;
+	unsigned uTmp = (unsigned((abs(nStart - nEnd) + 1)) *
+		unsigned(abs(nTmp))) / 2;
+	int nSumCalc = uTmp;
+	if (nTmp < 0)
+		nSumCalc = -nSumCalc; omp_set_num_threads(NUM_THREADS);
+#pragma omp parallel default(none) private(i) shared(nSum, nThreads, nStart,
+	nEnd;
+	{
+#pragma omp master
+		nThreads = omp_get_num_threads();
+#pragma omp for
+		for (i = nStart; i <= nEnd; ++i) {
+#pragma omp atomic
+			nSum += i;
+		}
+	}
+	if (nThreads == NUM_THREADS) {
+		printf_s("%d OpenMP threads were used.\n", NUM_THREADS);
+		nRet = 0;
+	}
+	else {
+		printf_s("Expected %d OpenMP threads, but %d were used.\n",
+			NUM_THREADS, nThreads);
+		nRet = 1;
+	}
+	if (nSum != nSumCalc) {
+		printf_s("The sum of %d through %d should be %d, "
+			"but %d was reported!\n",
+			NUM_START, NUM_END, nSumCalc, nSum);
+		nRet = 1;
+	}
+	else
+		printf_s("The sum of %d through %d is %d\n",
+			NUM_START, NUM_END, nSum);
+}
+Master
+// compile with: /openmp
+#include <omp.h>
+#include <stdio.h>
+int main()
+{
+	int a[5], i;
+#pragma omp parallel
+	{
+		// Perform some computation.
+#pragma omp for
+		for (i = 0; i < 5; i++)
+			a[i] = i * i;
+		// Print intermediate results.
+#pragma omp master
+		for (i = 0; i < 5; i++)
+			printf_s("a[%d] = %d\n", i, a[i]);
+		// Wait.
+#pragma omp barrier
+// Continue with the computation.
+#pragma omp for
+		for (i = 0; i < 5; i++)
+			a[i] += i;
+	}
+}
+Ordered
+// omp_ordered.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <omp.h>
+static float a[1000], b[1000], c[1000];
+void test(int first, int last)
+{
+#pragma omp for schedule(static) ordered
+	for (int i = first; i <= last; ++i) {
+		// Do something here.
+		if (i % 2)
+		{
+#pragma omp ordered
+			printf_s("test() iteration %d\n", i);
+		}
+	}
+}
+void test2(int iter)
+{
+#pragma omp ordered
+	printf_s("test2() iteration %d\n", iter);
+}
+int main()
+{
+	int i;
+#pragma omp parallel
+	{
+		test(1, 8);
+#pragma omp for ordered
+		for (i = 0; i < 5; i++)
+			test2(i);
+	}
+}
+Parallel
+// omp_parallel.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <omp.h>
+int main() {
+#pragma omp parallel num_threads(4)
+	{
+		int i = omp_get_thread_num();
+		printf_s("Hello from thread %d\n", i);
+	}
+}
+Sections
+// omp_sections.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <omp.h>
+int main() {
+#pragma omp parallel sections num_threads(4)
+	{
+		printf_s("Hello from thread %d\n", omp_get_thread_num());
+#pragma omp section
+		printf_s("Hello from thread %d\n", omp_get_thread_num());
+	}
+}
+Single
+// omp_single.cpp
+// compile with: /openmp
+#include <stdio.h>
+#include <omp.h>
+int main() {
+#pragma omp parallel num_threads(2)
+	{
+#pragma omp single
+		// Only a single thread can read the input.
+		printf_s("read input\n");
+		// Multiple threads in the team compute the results.
+		printf_s("compute results\n");
+#pragma omp single
+		// Only a single thread can write the output.
+		printf_s("write output\n");
+	}
+}
+Threadprivate
+struct MyType
+{
+	~MyType();
+};
+MyType threaded_var;
+#pragma omp threadprivate(threaded_var)
+int main()
+{
+#pragma omp parallel
+	{}
+}
